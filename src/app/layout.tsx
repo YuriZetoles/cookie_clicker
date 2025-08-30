@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Cookie Clicker - Jogo de Biscoitos",
   description: "Um divertido jogo Cookie Clicker feito com Next.js",
+  icons: {
+    icon: "/coockie.png",
+    shortcut: "/coockie.png",
+    apple: "/coockie.png",
+  },
 };
 
 export default function RootLayout({

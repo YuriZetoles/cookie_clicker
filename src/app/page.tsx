@@ -1,14 +1,19 @@
 'use client';
 
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import confetti from 'canvas-confetti';
 
 interface GameState {
   cookies: number;
   clickPower: number;
   autoClickers: number;
   totalCookiesEarned: number;
+  lastMilestone: number;
 }
+
+// Marcos para recompensas (em cookies totais)
+const MILESTONES = [100, 500, 1000, 5000, 10000, 50000, 100000, 500000, 1000000];
 
 export default function CookieClicker() {
   const [cookies, setCookies] = useState(0);
@@ -17,6 +22,9 @@ export default function CookieClicker() {
   const [cookiesPerSecond, setCookiesPerSecond] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [totalCookiesEarned, setTotalCookiesEarned] = useState(0);
+  const [lastMilestone, setLastMilestone] = useState(0);
+  const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
+  const [notification, setNotification] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
 
   // Carregar dados do localStorage na inicialização
   useEffect(() => {
@@ -28,6 +36,7 @@ export default function CookieClicker() {
         setClickPower(gameState.clickPower || 1);
         setAutoClickers(gameState.autoClickers || 0);
         setTotalCookiesEarned(gameState.totalCookiesEarned || 0);
+        setLastMilestone(gameState.lastMilestone || 0);
       } catch (error) {
         console.error('Erro ao carregar dados salvos:', error);
       }
@@ -42,11 +51,105 @@ export default function CookieClicker() {
         cookies,
         clickPower,
         autoClickers,
-        totalCookiesEarned
+        totalCookiesEarned,
+        lastMilestone
       };
       localStorage.setItem('cookieClickerSave', JSON.stringify(gameState));
     }
-  }, [cookies, clickPower, autoClickers, isLoaded, totalCookiesEarned]);
+  }, [cookies, clickPower, autoClickers, isLoaded, totalCookiesEarned, lastMilestone]);
+
+  // Função para tocar som de celebração
+  const playSuccessSound = useCallback(() => {
+    if (!audioContext) {
+      const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new AudioContextClass();
+      setAudioContext(ctx);
+      
+      // Som de sucesso simples
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+      oscillator.frequency.setValueAtTime(1000, ctx.currentTime + 0.1);
+      oscillator.frequency.setValueAtTime(1200, ctx.currentTime + 0.2);
+      
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.5);
+    }
+  }, [audioContext]);
+
+  // Função para lançar confetes
+  const launchConfetti = useCallback(() => {
+    const count = 200;
+    const defaults = {
+      origin: { y: 0.7 }
+    };
+
+    function fire(particleRatio: number, opts: confetti.Options) {
+      confetti({
+        ...defaults,
+        ...opts,
+        particleCount: Math.floor(count * particleRatio)
+      });
+    }
+
+    fire(0.25, {
+      spread: 26,
+      startVelocity: 55,
+    });
+
+    fire(0.2, {
+      spread: 60,
+    });
+
+    fire(0.35, {
+      spread: 100,
+      decay: 0.91,
+      scalar: 0.8
+    });
+
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 25,
+      decay: 0.92,
+      scalar: 1.2
+    });
+
+    fire(0.1, {
+      spread: 120,
+      startVelocity: 45,
+    });
+  }, []);
+
+  // Verificar marcos de recompensa
+  useEffect(() => {
+    const newMilestone = MILESTONES.find(milestone => 
+      totalCookiesEarned >= milestone && milestone > lastMilestone
+    );
+    
+    if (newMilestone) {
+      setLastMilestone(newMilestone);
+      launchConfetti();
+      playSuccessSound();
+      
+      // Mostrar notificação visual
+      setNotification({
+        message: `🎉 Parabéns! Você alcançou ${newMilestone.toLocaleString()} cookies totais!`,
+        visible: true
+      });
+      
+      // Esconder notificação após 4 segundos
+      setTimeout(() => {
+        setNotification(prev => ({ ...prev, visible: false }));
+      }, 4000);
+    }
+  }, [totalCookiesEarned, lastMilestone, launchConfetti, playSuccessSound]);
 
   // Auto clicker effect
   useEffect(() => {
@@ -65,6 +168,16 @@ export default function CookieClicker() {
   const handleCookieClick = () => {
     setCookies(prev => prev + clickPower);
     setTotalCookiesEarned(prev => prev + clickPower);
+    
+    // Efeito visual para cliques poderosos
+    if (clickPower >= 5) {
+      confetti({
+        particleCount: Math.min(clickPower * 2, 50),
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#FFA500', '#FFD700', '#FF8C00', '#F4A460']
+      });
+    }
   };
 
   const buyClickUpgrade = () => {
@@ -89,12 +202,24 @@ export default function CookieClicker() {
       setClickPower(1);
       setAutoClickers(0);
       setTotalCookiesEarned(0);
+      setLastMilestone(0);
       localStorage.removeItem('cookieClickerSave');
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-yellow-100 to-orange-200 dark:from-yellow-900 dark:to-orange-900 p-4">
+      {/* Notificação de recompensa */}
+      {notification.visible && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-bounce">
+          <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg shadow-2xl border-2 border-white">
+            <div className="text-center font-bold text-lg">
+              {notification.message}
+            </div>
+          </div>
+        </div>
+      )}
+      
       {!isLoaded ? (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
@@ -209,6 +334,30 @@ export default function CookieClicker() {
                 <div className="font-semibold text-yellow-600 dark:text-yellow-400 pt-1 border-t border-gray-200 dark:border-gray-600">
                   🏆 Total de cookies obtidos: {totalCookiesEarned.toLocaleString()}
                 </div>
+                {/* Próximo marco */}
+                {(() => {
+                  const nextMilestone = MILESTONES.find(milestone => milestone > totalCookiesEarned);
+                  if (nextMilestone) {
+                    const progress = (totalCookiesEarned / nextMilestone) * 100;
+                    return (
+                      <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
+                        <div className="text-xs text-purple-600 dark:text-purple-400 mb-1">
+                          🎯 Próxima recompensa: {nextMilestone.toLocaleString()} cookies
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                          <div 
+                            className="bg-purple-500 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${Math.min(progress, 100)}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {progress.toFixed(1)}% completo
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               
               {/* Reset Button */}

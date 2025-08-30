@@ -7,6 +7,7 @@ interface GameState {
   cookies: number;
   clickPower: number;
   autoClickers: number;
+  totalCookiesEarned: number;
 }
 
 export default function CookieClicker() {
@@ -15,6 +16,7 @@ export default function CookieClicker() {
   const [autoClickers, setAutoClickers] = useState(0);
   const [cookiesPerSecond, setCookiesPerSecond] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [totalCookiesEarned, setTotalCookiesEarned] = useState(0);
 
   // Carregar dados do localStorage na inicialização
   useEffect(() => {
@@ -25,6 +27,7 @@ export default function CookieClicker() {
         setCookies(gameState.cookies || 0);
         setClickPower(gameState.clickPower || 1);
         setAutoClickers(gameState.autoClickers || 0);
+        setTotalCookiesEarned(gameState.totalCookiesEarned || 0);
       } catch (error) {
         console.error('Erro ao carregar dados salvos:', error);
       }
@@ -38,17 +41,19 @@ export default function CookieClicker() {
       const gameState: GameState = {
         cookies,
         clickPower,
-        autoClickers
+        autoClickers,
+        totalCookiesEarned
       };
       localStorage.setItem('cookieClickerSave', JSON.stringify(gameState));
     }
-  }, [cookies, clickPower, autoClickers, isLoaded]);
+  }, [cookies, clickPower, autoClickers, isLoaded, totalCookiesEarned]);
 
   // Auto clicker effect
   useEffect(() => {
     if (autoClickers > 0) {
       const interval = setInterval(() => {
         setCookies(prev => prev + autoClickers);
+        setTotalCookiesEarned(prev => prev + autoClickers);
         setCookiesPerSecond(autoClickers);
       }, 1000);
       return () => clearInterval(interval);
@@ -58,7 +63,8 @@ export default function CookieClicker() {
   }, [autoClickers]);
 
   const handleCookieClick = () => {
-    setCookies(cookies + clickPower);
+    setCookies(prev => prev + clickPower);
+    setTotalCookiesEarned(prev => prev + clickPower);
   };
 
   const buyClickUpgrade = () => {
@@ -82,6 +88,7 @@ export default function CookieClicker() {
       setCookies(0);
       setClickPower(1);
       setAutoClickers(0);
+      setTotalCookiesEarned(0);
       localStorage.removeItem('cookieClickerSave');
     }
   };
@@ -199,6 +206,9 @@ export default function CookieClicker() {
                 <div>Poder de clique: {clickPower}</div>
                 <div>Auto clickers: {autoClickers}</div>
                 <div>Cookies por segundo: {cookiesPerSecond}</div>
+                <div className="font-semibold text-yellow-600 dark:text-yellow-400 pt-1 border-t border-gray-200 dark:border-gray-600">
+                  🏆 Total de cookies obtidos: {totalCookiesEarned.toLocaleString()}
+                </div>
               </div>
               
               {/* Reset Button */}
